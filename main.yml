@@ -1,0 +1,27 @@
+---
+- hosts: all
+  gather_facts: false
+  tasks:
+    - delegate_to: localhost
+      command: ping -c1 "{{ hostvars[inventory_hostname].ansible_host|default(inventory_hostname) }}"
+      register: ping
+      ignore_errors: true
+
+    - set_fact:
+        available: "{{ ping.rc == 0 }}"
+
+    - setup:
+      when: ping.rc == 0
+
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - file:
+        path: /var/lib/awx/projects/playbooks/check_inventory/available.txt
+        state: absent
+    - lineinfile:
+        dest: /var/lib/awx/projects/playbooks/check_inventory/available.txt
+        line: "Host:{{ item }},connection:{{ hostvars[item].available }}{% if hostvars[item].available %},OS:{{ hostvars[item].ansible_distribution }},Kernel:{{ hostvars[item].ansible_kernel }},OSVersion:{{ hostvars[item].ansible_distribution_version }},FreeMemory:{{ hostvars[item].ansible_memfree_mb }},IPAddress:{{ hostvars[item].ansible_default_ipv4.address}}{% endif %}"
+        regexp: "Host: {{ item }}"
+        create: true
+      loop: "{{ groups.all }}"
